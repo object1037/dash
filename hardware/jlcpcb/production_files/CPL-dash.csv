@@ -1,0 +1,27 @@
+Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
+C1,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,95.95,-76.85,0.0,bottom
+C10,47u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,121.0375,-87.3,180.0,bottom
+C11,4.7u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,121.0375,-84.29,180.0,bottom
+C12,47u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,158.0,-87.9125,90.0,bottom
+C13,0.1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,156.05,-88.1375,90.0,bottom
+C14,0.1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,120.8125,-81.95,180.0,bottom
+C2,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,97.377687,-82.097095,180.0,bottom
+C3,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,97.377687,-83.647095,180.0,bottom
+C4,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,97.377687,-85.197095,180.0,bottom
+C5,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,96.45,-88.9375,270.0,bottom
+C6,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,94.9,-88.9375,270.0,bottom
+C7,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,91.7,-91.8125,90.0,bottom
+C8,1u,C_0603_1608Metric_Pad1.08x0.95mm_HandSolder,93.35,-88.9375,270.0,bottom
+C9,4.7u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,106.4,-89.95,90.0,bottom
+D1,D_Schottky,D_SMA,101.5625,-91.85,0.0,bottom
+D2,D_Schottky,D_SMA,101.5625,-95.6,180.0,bottom
+D3,D_Schottky,D_SMA,101.5625,-88.1,180.0,bottom
+J1,Conn_Display,Jushuo_AFC07-S24FCA-00_1x24-1MP_P0.50_Horizontal,91.15,-80.6,90.0,bottom
+L1,47u,L_10.4x10.4_H4.8,113.25,-86.1,270.0,bottom
+L2,L_Ferrite,L_0603_1608Metric_Pad1.05x0.95mm_HandSolder,120.0,-90.25,90.0,bottom
+Q1,AO3400A,SOT-23_Handsoldering,104.527687,-82.097095,0.0,bottom
+R1,10k,R_0603_1608Metric_Pad0.98x0.95mm_HandSolder,100.4,-81.1875,270.0,bottom
+R2,2.2,R_0603_1608Metric_Pad0.98x0.95mm_HandSolder,103.027687,-85.197095,0.0,bottom
+R3,10k,R_0603_1608Metric_Pad0.98x0.95mm_HandSolder,169.5125,-92.75,0.0,bottom
+R4,10k,R_0603_1608Metric_Pad0.98x0.95mm_HandSolder,169.5125,-95.3,0.0,bottom
+U2,SCD40-D-R2,Sensirion_SCD4x-1EP_10.1x10.1mm_P1.25mm_EP4.8x4.8mm,148.65,-90.25,270.0,bottom
