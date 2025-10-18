@@ -1,29 +1,36 @@
-/* Blink Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <stdio.h>
+#include "esp_lcd_panel_ssd1680.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_vendor.h"
+#include "esp_lcd_panel_ops.h"
 #include "driver/gpio.h"
+#include "driver/spi_master.h"
+#include "esp_err.h"
 #include "esp_log.h"
+#include "lvgl.h"
 #include "led_strip.h"
 #include "sdkconfig.h"
 
-static const char* TAG = "example";
+static const char* TAG = "App";
 
-/* Use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
-   or you can edit the following line and set a number here.
-*/
-#define BLINK_GPIO CONFIG_BLINK_GPIO
+#define LCD_HOST SPI2_HOST
+
+#define PIN_NUM_LED 2
+#define PIN_NUM_SCLK 6
+#define PIN_NUM_MOSI 7
+#define PIN_NUM_EPD_DC 4
+#define PIN_NUM_EPD_CS 5
+#define PIN_NUM_EPD_RST 8
+#define PIN_NUM_EPD_BUSY 10
+#define PIN_NUM_SCL 0
+#define PIN_NUM_SDA 1
+
+#define EPD_WIDTH 128
+#define EPD_HEIGHT 296
 
 static uint8_t s_led_state = 0;
-
-#ifdef CONFIG_BLINK_LED_STRIP
 
 static led_strip_handle_t led_strip;
 
@@ -44,47 +51,31 @@ static void configure_led(void) {
   ESP_LOGI(TAG, "Example configured to blink addressable LED!");
   /* LED strip initialization with the GPIO and pixels number*/
   led_strip_config_t strip_config = {
-      .strip_gpio_num = BLINK_GPIO,
+      .strip_gpio_num = PIN_NUM_LED,
       .max_leds = 1,  // at least one LED on board
   };
-#if CONFIG_BLINK_LED_STRIP_BACKEND_RMT
+
   led_strip_rmt_config_t rmt_config = {
       .resolution_hz = 10 * 1000 * 1000,  // 10MHz
       .flags.with_dma = false,
   };
   ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-#elif CONFIG_BLINK_LED_STRIP_BACKEND_SPI
-  led_strip_spi_config_t spi_config = {
-      .spi_bus = SPI2_HOST,
-      .flags.with_dma = true,
-  };
-  ESP_ERROR_CHECK(led_strip_new_spi_device(&strip_config, &spi_config, &led_strip));
-#else
-#error "unsupported LED strip backend"
-#endif
   /* Set all LED off to clear all pixels */
   led_strip_clear(led_strip);
 }
 
-#elif CONFIG_BLINK_LED_GPIO
-
-static void blink_led(void) {
-  /* Set the GPIO level according to the state (LOW or HIGH)*/
-  gpio_set_level(BLINK_GPIO, s_led_state);
-}
-
-static void configure_led(void) {
-  ESP_LOGI(TAG, "Example configured to blink GPIO LED!");
-  gpio_reset_pin(BLINK_GPIO);
-  /* Set the GPIO as a push/pull output */
-  gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
-}
-
-#else
-#error "unsupported LED type"
-#endif
-
 void app_main(void) {
+  ESP_LOGI(TAG, "Initialize SPI bus");
+  spi_bus_config_t spi_buscfg = {
+      .sclk_io_num = PIN_NUM_SCLK,
+      .mosi_io_num = PIN_NUM_MOSI,
+      .miso_io_num = -1,
+      .quadwp_io_num = -1,
+      .quadhd_io_num = -1,
+      .max_transfer_sz = EPD_HEIGHT * EPD_WIDTH / 8 + 8,
+  };
+  ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &spi_buscfg, SPI_DMA_CH_AUTO));
+
   /* Configure the peripheral according to the LED type */
   configure_led();
 
@@ -93,6 +84,6 @@ void app_main(void) {
     blink_led();
     /* Toggle the LED state */
     s_led_state = !s_led_state;
-    vTaskDelay(CONFIG_BLINK_PERIOD / portTICK_PERIOD_MS);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
   }
 }

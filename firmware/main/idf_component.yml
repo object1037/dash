@@ -1,2 +1,5 @@
 dependencies:
-  espressif/led_strip: "^3.0.0"
+  espressif/led_strip: ^3.0.0
+  lvgl/lvgl: ^9.4.0
+  esp_lcd_ssd1680:
+    git: ssh://git@github.com/object1037/esp_lcd_ssd1680.git

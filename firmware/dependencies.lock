@@ -1,4 +1,14 @@
 dependencies:
+  esp_lcd_ssd1680:
+    component_hash: 5fe202fc75ceb10b0810627a869cc0291ecca1002ff2f178fe0592ce9c4b4165
+    dependencies:
+    - name: idf
+      version: '>=5.0'
+    source:
+      git: ssh://git@github.com/object1037/esp_lcd_ssd1680.git
+      path: .
+      type: git
+    version: d9c408a40319896697b6e2a3a26f041971fcac8d
   espressif/led_strip:
     component_hash: 223998f10cae6d81f2ad2dd3c1103c2221be298c708e37917482b0153f3ec64e
     dependencies:
@@ -13,8 +23,17 @@ dependencies:
     source:
       type: idf
     version: 5.5.1
+  lvgl/lvgl:
+    component_hash: 17e68bfd21f0edf4c3ee838e2273da840bf3930e5dbc3bfa6c1190c3aed41f9f
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 9.4.0
 direct_dependencies:
+- esp_lcd_ssd1680
 - espressif/led_strip
-manifest_hash: cdcc77aff1f56b906c61e51c8f438577513c8d92aa9dfd7bf655f126d2b2d320
+- lvgl/lvgl
+manifest_hash: 79983a6ec9162dc8fde999b246b7b53b2cfa2befb5d730eb03dc89fbc5e78de9
 target: esp32c3
 version: 2.0.0

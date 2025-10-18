@@ -21,6 +21,8 @@
     "*.g": "gnuplot",
     "led_strip.h": "c",
     "esp_log.h": "c",
-    "led_strip_rmt.h": "c"
+    "led_strip_rmt.h": "c",
+    "esp_lcd_panel_ssd1680.h": "c",
+    "spi_master.h": "c"
   }
 }
