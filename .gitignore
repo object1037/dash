@@ -3,4 +3,6 @@ dash-backups
 \#auto_saved_files#
 fp-info-cache
 .DS_Store
+firmware/build
+firmware/managed_components
 
