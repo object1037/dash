@@ -25,6 +25,8 @@
     "esp_lcd_panel_ssd1680.h": "c",
     "spi_master.h": "c",
     "sdkconfig.h": "c",
-    "esp_lcd_panel_io.h": "c"
+    "esp_lcd_panel_io.h": "c",
+    "cstring": "c",
+    "*.inc": "c"
   }
 }

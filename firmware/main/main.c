@@ -9,13 +9,12 @@
 #include "driver/spi_master.h"
 #include "driver/i2c_master.h"
 #include "esp_err.h"
-#include "esp_timer.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 
 #include "led.h"
 #include "esp_lcd_panel_ssd1680.h"
-#include "icon_mono.h"
+#include "ui.h"
 #include "scd40.h"
 
 static const char* TAG = "App";
@@ -32,8 +31,6 @@ static const char* TAG = "App";
 #define PIN_NUM_SCL 0
 #define PIN_NUM_SDA 1
 
-#define EPD_WIDTH 128
-#define EPD_HEIGHT 296
 #define LCD_CMD_BITS 8
 #define LCD_PARAM_BITS 8
 
@@ -59,7 +56,6 @@ void app_main(void) {
   /* Configure the peripheral according to the LED type */
   ESP_ERROR_CHECK(configure_led(&led_strip, PIN_NUM_LED));
 
-  /*
   ESP_LOGI(TAG, "Initialize SPI bus");
   spi_bus_config_t spi_buscfg = {
       .sclk_io_num = PIN_NUM_SCLK,
@@ -111,16 +107,6 @@ void app_main(void) {
   ESP_LOGI(TAG, "Turning e-Paper display on...");
   ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
   vTaskDelay(100 / portTICK_PERIOD_MS);
-  // --- Configurate the screen
-  // NOTE: the configurations below are all FALSE by default
-  ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle, false, false));
-  ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_handle, false));
-  ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle, false));
-
-  uint16_t buf_size = EPD_HEIGHT * EPD_WIDTH / 8;
-  uint8_t* draw_buf = heap_caps_malloc(buf_size, MALLOC_CAP_DMA);
-  assert(draw_buf);
-  memset(draw_buf, 0x00, buf_size);
 
   static SemaphoreHandle_t panel_refreshing_sem;
   panel_refreshing_sem = xSemaphoreCreateBinary();
@@ -130,12 +116,15 @@ void app_main(void) {
   epaper_panel_callbacks_t cbs = {.on_epaper_refresh_done = epaper_flush_ready_callback};
   epaper_panel_register_event_callbacks(panel_handle, &cbs, &panel_refreshing_sem);
 
-  ESP_LOGI(TAG, "Draw image");
-  memcpy(draw_buf, icon_mono, sizeof(icon_mono));
-  xSemaphoreTake(panel_refreshing_sem, portMAX_DELAY);
-  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, EPD_WIDTH, EPD_HEIGHT, draw_buf));
-  ESP_ERROR_CHECK(epaper_panel_refresh_screen(panel_handle));
-  */
+  uint8_t* draw_buf = init_ui_buffer();
+  ESP_LOGI(TAG, "Draw UI");
+  draw_ui(panel_handle, panel_refreshing_sem, draw_buf);
+
+  ESP_ERROR_CHECK(blink_led(&led_strip, &color_white));
+
+  vTaskDelay(pdMS_TO_TICKS(5000));
+  ESP_ERROR_CHECK(blink_led(&led_strip, &color_black));
+  ESP_LOGI(TAG, "Go to sleep mode...");
 
   ESP_LOGI(TAG, "Initialize I2C bus");
   i2c_master_bus_config_t i2c_buscfg = {
@@ -160,13 +149,6 @@ void app_main(void) {
 
   ESP_LOGI(TAG, "Start SCD40 low power measurement");
   ESP_ERROR_CHECK(scd40_start_lp_measurement(scd40_handle));
-
-  ESP_ERROR_CHECK(blink_led(&led_strip, &color_white));
-
-  vTaskDelay(pdMS_TO_TICKS(5000));
-  ESP_ERROR_CHECK(blink_led(&led_strip, &color_black));
-  ESP_LOGI(TAG, "Go to sleep mode...");
-  // ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, false));
 
   while (1) {
     vTaskDelay(pdMS_TO_TICKS(1000));
