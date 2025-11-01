@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<body>
+  <canvas>
+  </canvas>
+  <script>
+    const COLS = 128;
+    const ROWS = 296;
+    const cellSize = 3;
+    const borderSize = 0.5;
+    const devicePixelRatio = window.devicePixelRatio || 1;
+
+    const buf = new Uint8Array(COLS * ROWS / 8);
+
+    const canvas = document.querySelector('canvas');
+    const ctx = canvas.getContext('2d');
+    const width = COLS * (cellSize + borderSize) + borderSize;
+    const height = ROWS * (cellSize + borderSize) + borderSize;
+    canvas.width = width * devicePixelRatio;
+    canvas.height = height * devicePixelRatio;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+
+    let rotated = false;
+    canvas.addEventListener('click', () => {
+      rotated = !rotated;
+      if (rotated) {
+        canvas.style.transform = 'rotate(0deg)';
+        return;
+      }
+      canvas.style.transform = 'rotate(90deg)';
+    })
+
+    const draw = () => {
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(0, 0, width, height);
+      for (let i = 0; i < COLS * ROWS; i++) {
+        const byte = buf[Math.floor(i / 8)];
+        const bit = 7 - (i & 7);
+        ctx.fillStyle = '#fff';
+        if ((byte >> bit) & 1) {
+          ctx.fillStyle = '#000';
+        }
+        const x = (i % COLS) * (cellSize + borderSize) + borderSize;
+        const y = Math.floor(i / COLS) * (cellSize + borderSize) + borderSize;
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    for (let i = 0; i < buf.length; i++) {
+      const x = i % 16;
+      const y = Math.floor(i / 16);
+      switch (x) {
+        case 5:
+          buf[i] |= 0x02;
+          break;
+
+        case 10:
+          buf[i] |= 0x01;
+          break;
+
+        // case 0:
+        //   buf[i] |= 0x04;
+        //   break;
+
+        default:
+          break;
+      }
+
+      if (y === 56) {
+        buf[i] |= 0xFF;
+      }
+
+      if (y > 56 && (y - 56) % 60 === 0) {
+        if (x === 5) {
+          buf[i] |= 0x07;
+        } else if (x === 10) {
+          buf[i] |= 0x03;
+        } else if (x === 11) {
+          buf[i] |= 0x80;
+        }
+      }
+    }
+
+    draw();
+  </script>
+  <style>
+    body {
+      width: 100%;
+      margin: 0;
+      display: flex;
+      background-color: #f5f5f5;
+    }
+
+    canvas {
+      padding: 3rem 0;
+      margin: 0 auto;
+      transform: rotate(90deg);
+    }
+  </style>
+</body>
+
+</html>
