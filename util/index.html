@@ -4,6 +4,7 @@
 <body>
   <canvas>
   </canvas>
+  <script src="./fonts.js"></script>
   <script>
     const COLS = 128;
     const ROWS = 296;
@@ -33,6 +34,18 @@
       canvas.style.transform = 'rotate(90deg)';
     })
 
+    const toIdx = (x, y) => {
+      return y * 16 + x;
+    }
+
+    const drawFont = (start_x, start_y, font, buf) => {
+      for (let offset_x = 0; offset_x < 3; offset_x++) {
+        for (let offset_y = 0; offset_y < 14; offset_y++) {
+          buf[toIdx(start_x + offset_x, start_y + offset_y)] |= font[offset_y * 3 + offset_x];
+        }
+      }
+    }
+
     const draw = () => {
       ctx.fillStyle = '#f5f5f5';
       ctx.fillRect(0, 0, width, height);
@@ -52,35 +65,30 @@
     for (let i = 0; i < buf.length; i++) {
       const x = i % 16;
       const y = Math.floor(i / 16);
-      switch (x) {
-        case 5:
-          buf[i] |= 0x02;
-          break;
 
-        case 10:
-          buf[i] |= 0x01;
-          break;
-
-        // case 0:
-        //   buf[i] |= 0x04;
-        //   break;
-
-        default:
-          break;
+      // Horizontal lines
+      if (x == 5 || x == 10) {
+        buf[i] |= 0x01;
+        // tick marks
+        if (y > 56 && (y - 56) % 60 == 0) {
+          buf[i] |= 0x03;
+        }
       }
 
-      if (y === 56) {
+      // Vertical lines
+      if (y == 56) {
         buf[i] |= 0xFF;
       }
 
-      if (y > 56 && (y - 56) % 60 === 0) {
-        if (x === 5) {
-          buf[i] |= 0x07;
-        } else if (x === 10) {
-          buf[i] |= 0x03;
-        } else if (x === 11) {
-          buf[i] |= 0x80;
+      // Font render
+      for (let x = 0; x < 3; x++) {
+        for (let y = 0; y < 4; y++) {
+          drawFont(1 + x * 5, 3 + y * 12, fonts[0], buf);
         }
+      }
+
+      for (let y = 0; y < 10; y++) {
+        drawFont(1, 106 + y * 14, fonts[y], buf);
       }
     }
 

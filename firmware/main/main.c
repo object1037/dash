@@ -133,7 +133,7 @@ void app_main(void) {
       .scl_io_num = PIN_NUM_SCL,
       .sda_io_num = PIN_NUM_SDA,
       .glitch_ignore_cnt = 7,
-      .flags.enable_internal_pullup = false,
+      .flags.enable_internal_pullup = true,
   };
   i2c_master_bus_handle_t i2c_handle;
   ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_buscfg, &i2c_handle));
@@ -146,6 +146,7 @@ void app_main(void) {
 
   i2c_master_dev_handle_t scd40_handle;
   ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_handle, &scd40_dev_config, &scd40_handle));
+  vTaskDelay(pdMS_TO_TICKS(100));
 
   ESP_LOGI(TAG, "Start SCD40 low power measurement");
   ESP_ERROR_CHECK(scd40_start_lp_measurement(scd40_handle));
