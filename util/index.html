@@ -38,10 +38,16 @@
       return y * 16 + x;
     }
 
-    const drawFont = (start_x, start_y, font, buf) => {
-      for (let offset_x = 0; offset_x < 3; offset_x++) {
-        for (let offset_y = 0; offset_y < 14; offset_y++) {
-          buf[toIdx(start_x + offset_x, start_y + offset_y)] |= font[offset_y * 3 + offset_x];
+    const drawFont = (start_x, start_y, font, isSmall, buf) => {
+      let font_w = 3;
+      let font_h = 14;
+      if (isSmall) {
+        font_w = 2;
+        font_h = 7;
+      }
+      for (let offset_x = 0; offset_x < font_w; offset_x++) {
+        for (let offset_y = 0; offset_y < font_h; offset_y++) {
+          buf[toIdx(start_x + offset_x, start_y + offset_y)] |= font[offset_y * font_w + offset_x];
         }
       }
     }
@@ -79,17 +85,32 @@
       if (y == 56) {
         buf[i] |= 0xFF;
       }
+    }
 
-      // Font render
-      for (let x = 0; x < 3; x++) {
-        for (let y = 0; y < 4; y++) {
-          drawFont(1 + x * 5, 3 + y * 12, fonts[0], buf);
+    // Font render
+    for (let x = 0; x < 3; x++) {
+      let h_offset = 0;
+      for (let y = 0; y < 4; y++) {
+        let font_idx = Math.floor(Math.random() * 10);
+        let font_idx_2 = 9 - font_idx;
+        if (y == 1 && x != 2) {
+          font_idx = 10; // dot
+          font_idx_2 = 10;
+          h_offset--;
+        } else if (y == 2 && x != 2) {
+          h_offset--;
         }
+        drawFont(1 + x * 5, 3 + y * 12, fonts[font_idx], false, buf);
+        drawFont(4 + x * 5, h_offset + y * 6, fonts_small[font_idx], true, buf);
+        drawFont(4 + x * 5, h_offset + 30 + y * 6, fonts_small[font_idx_2], true, buf);
       }
+    }
 
-      for (let y = 0; y < 10; y++) {
-        drawFont(1, 106 + y * 14, fonts[y], buf);
-      }
+    for (let y = 0; y < 11; y++) {
+      drawFont(1, 106 + y * 14, fonts[y], false, buf);
+    }
+    for (let y = 0; y < 11; y++) {
+      drawFont(4, 107 + y * 7, fonts_small[y], true, buf);
     }
 
     draw();

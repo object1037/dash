@@ -1,3 +1,5 @@
+/* Font data based on Departure Mono https://departuremono.com/ */
+
 #include "fonts.h"
 
 const uint8_t FONTS[10][42] = {
