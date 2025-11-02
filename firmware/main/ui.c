@@ -6,6 +6,7 @@
 #include "fonts.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
+#include "scd40.h"
 #include "string.h"
 #include <stdint.h>
 
@@ -16,7 +17,8 @@ uint8_t *init_ui_buffer() {
   return draw_buf;
 }
 
-void draw_font(int start_x, int start_y, bool is_small, int idx, uint8_t *buf) {
+static void draw_font(int start_x, int start_y, bool is_small, int idx,
+                      uint8_t *buf) {
   int font_w = FONT_W;
   int font_h = FONT_H;
   const uint8_t *font = FONTS[idx];
@@ -34,8 +36,8 @@ void draw_font(int start_x, int start_y, bool is_small, int idx, uint8_t *buf) {
   }
 }
 
-void draw_num(int start_x, int start_y, bool is_small, float number,
-              uint8_t *buf) {
+static void draw_num(int start_x, int start_y, bool is_small, float number,
+                     uint8_t *buf) {
   int font_h = FONT_H - 2;
   int dot_offset_h = 0;
   if (is_small) {
@@ -67,6 +69,59 @@ void draw_num(int start_x, int start_y, bool is_small, float number,
   }
 }
 
+static void draw_graph(int start_x, float trace_min, float trace_max, int type,
+                       scd40_measurement_t meas_history[], int history_cursor,
+                       uint8_t *buf) {
+  float trace_step = 0.1f;
+  float trace_scale = trace_max - trace_min;
+  float trace_mid = (trace_max + trace_min) / 2.0f;
+
+  if (trace_scale >= 2000) {
+    trace_step = 100;
+  } else if (trace_scale >= 800) {
+    trace_step = 50;
+  } else if (trace_scale >= 400) {
+    trace_step = 20;
+  } else if (trace_scale >= 200) {
+    trace_step = 10;
+  } else if (trace_scale >= 80) {
+    trace_step = 5;
+  } else if (trace_scale >= 40) {
+    trace_step = 2;
+  } else if (trace_scale >= 20) {
+    trace_step = 1;
+  } else if (trace_scale >= 8) {
+    trace_step = 0.5;
+  } else if (trace_scale >= 4) {
+    trace_step = 0.2;
+  }
+
+  for (int y = 295; y > 56; y--) {
+    int history_idx = (295 - y + history_cursor) % 240;
+    scd40_measurement_t meas = meas_history[history_idx];
+
+    float trace_offset;
+    if (type == 0) {
+      trace_offset = meas.temperature - trace_mid;
+    } else if (type == 1) {
+      trace_offset = meas.humidity - trace_mid;
+    } else {
+      trace_offset = meas.co2 - trace_mid;
+    }
+
+    if (trace_offset == -trace_mid) {
+      continue; // no data
+    }
+
+    int steps = (int)(trace_offset / trace_step) + 20;
+    uint64_t tmp = 1 << steps;
+
+    for (int x_offset = 0; x_offset < 5; x_offset++) {
+      buf[TO_IDX(start_x + x_offset, y)] |= (tmp >> (4 - x_offset) * 8) & 0xFF;
+    }
+  }
+}
+
 void refresh_panel(esp_lcd_panel_handle_t panel_handle,
                    SemaphoreHandle_t panel_refreshing_sem, bool full_refresh,
                    uint8_t *buf) {
@@ -94,7 +149,8 @@ void refresh_panel(esp_lcd_panel_handle_t panel_handle,
   ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, false));
 }
 
-void draw_ui(scd40_measurement_t meas_digest[3], uint8_t *buf) {
+void draw_ui(scd40_measurement_t meas_digest[3],
+             scd40_measurement_t meas_history[], int minutes, uint8_t *buf) {
   memset(buf, 0x00, BUF_SIZE);
   for (int i = 0; i < BUF_SIZE; i++) {
     int x = i % COLS_BYTE;
@@ -133,6 +189,14 @@ void draw_ui(scd40_measurement_t meas_digest[3], uint8_t *buf) {
   draw_num(14, 0, true, meas_digest[2].co2, buf);  // max
   draw_font(14, 23, true, FONT_HYPHEN, buf);       // hyphen
   draw_num(14, 30, true, meas_digest[1].co2, buf); // min
+
+  // Graphs
+  draw_graph(1, meas_digest[1].temperature, meas_digest[2].temperature, 0,
+             meas_history, minutes + 1, buf);
+  draw_graph(6, meas_digest[1].humidity, meas_digest[2].humidity, 1,
+             meas_history, minutes + 1, buf);
+  draw_graph(11, meas_digest[1].co2, meas_digest[2].co2, 2, meas_history,
+             minutes + 1, buf);
 
   // Tests
   // for (int y = 0; y < 11; y++) {

@@ -34,6 +34,8 @@ static const char *TAG = "App";
 #define LCD_CMD_BITS 8
 #define LCD_PARAM_BITS 8
 
+#define FILTER_ALPHA 0.5f
+
 led_strip_handle_t led_strip;
 rgb_t color_white = {16, 16, 16};
 rgb_t color_black = {0, 0, 0};
@@ -107,6 +109,21 @@ void average_last_minutes(scd40_measurement_t *latest_meas) {
   meas_digest[0].temperature = temp_sum / 12.0f;
   meas_digest[0].humidity = rh_sum / 12.0f;
   meas_digest[0].co2 = co2_sum / 12;
+}
+
+void add_history(int minutes) {
+  scd40_measurement_t meas_prev = meas_digest[0];
+  if (minutes > 0) {
+    meas_prev = meas_history[minutes - 1];
+  }
+  meas_history[minutes].temperature =
+      FILTER_ALPHA * meas_prev.temperature +
+      (1 - FILTER_ALPHA) * meas_digest[0].temperature;
+  meas_history[minutes].humidity = FILTER_ALPHA * meas_prev.humidity +
+                                   (1 - FILTER_ALPHA) * meas_digest[0].humidity;
+  meas_history[minutes].co2 =
+      (uint16_t)(FILTER_ALPHA * meas_prev.co2 +
+                 (1 - FILTER_ALPHA) * meas_digest[0].co2);
 }
 
 void app_main(void) {
@@ -217,13 +234,14 @@ void app_main(void) {
     }
 
     // Approx. every 5 seconds
+    int minutes = counter / 12;
     int minute_idx = counter % 12;
     if (minute_idx != 0) {
       scd40_read_measurement(scd40_handle, &meas_last_minutes[minute_idx - 1]);
-      ESP_LOGI(TAG, "[%d] CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", counter,
-               meas_last_minutes[minute_idx - 1].co2,
-               meas_last_minutes[minute_idx - 1].temperature,
-               meas_last_minutes[minute_idx - 1].humidity);
+      // ESP_LOGI(TAG, "(%d) CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", counter,
+      //          meas_last_minutes[minute_idx - 1].co2,
+      //          meas_last_minutes[minute_idx - 1].temperature,
+      //          meas_last_minutes[minute_idx - 1].humidity);
     } else {
       scd40_measurement_t meas;
       scd40_read_measurement(scd40_handle, &meas);
@@ -233,19 +251,25 @@ void app_main(void) {
       } else {
         average_last_minutes(&meas);
       }
-      meas_history[counter / 12] = meas_digest[0];
+
+      add_history(minutes);
       update_digest();
 
-      ESP_LOGI(TAG, "[%d] CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", counter,
+      ESP_LOGI(TAG, "(%d) CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", counter,
                meas_digest[0].co2, meas_digest[0].temperature,
                meas_digest[0].humidity);
     }
 
-    if (counter % 60 == 0) { // every 5 minutes
-      ESP_LOGI(TAG, "Update digest UI");
-      draw_ui(meas_digest, draw_buf);
-      refresh_panel(panel_handle, panel_refreshing_sem, first_run, draw_buf);
+    if (counter % 180 == 0) { // every 15 minutes
+      ESP_LOGI(TAG, "[%d] Update Graph", minutes);
+      draw_ui(meas_digest, meas_history, minutes, draw_buf);
+      refresh_panel(panel_handle, panel_refreshing_sem, true, draw_buf);
     }
+    // else if (counter % 60 == 0) { // every 5 minutes
+    //   ESP_LOGI(TAG, "[%d] Update digest UI", minutes);
+    //   draw_ui(meas_digest, meas_history, minutes, draw_buf);
+    //   refresh_panel(panel_handle, panel_refreshing_sem, first_run, draw_buf);
+    // }
 
     counter++;
     if (counter == 2880) { // 2880 x 5s = 4 hours

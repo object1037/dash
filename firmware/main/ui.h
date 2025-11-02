@@ -14,4 +14,4 @@
 
 uint8_t *init_ui_buffer();
 void refresh_panel(esp_lcd_panel_handle_t panel_handle, SemaphoreHandle_t panel_refreshing_sem, bool full_refresh, uint8_t *buf);
-void draw_ui(scd40_measurement_t meas_digest[3], uint8_t *draw_buf);
+void draw_ui(scd40_measurement_t meas_digest[3], scd40_measurement_t meas_history[], int minutes, uint8_t *draw_buf);

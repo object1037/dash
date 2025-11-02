@@ -20,6 +20,13 @@
     const devicePixelRatio = window.devicePixelRatio || 1;
 
     const buf = new Uint8Array(COLS * ROWS / 8);
+    const meas_history = new Array(240).fill(0).map((v, i) => {
+      return {
+        temperature: 0,
+        humidity: 0,
+        co2: 0,
+      };
+    });
 
     const canvas = document.querySelector('canvas');
     const ctx = canvas.getContext('2d');
@@ -85,6 +92,57 @@
         }
       }
     }
+    const drawGraph = (start_x, trace_min, trace_max, type, history_cursor, buf) => {
+      let trace_step = 0.1;
+      let trace_scale = trace_max - trace_min;
+      let trace_mid = (trace_max + trace_min) / 2;
+
+      if (trace_scale >= 2000) {
+        trace_step = 100;
+      } else if (trace_scale >= 800) {
+        trace_step = 50;
+      } else if (trace_scale >= 400) {
+        trace_step = 20;
+      } else if (trace_scale >= 200) {
+        trace_step = 10;
+      } else if (trace_scale >= 80) {
+        trace_step = 5;
+      } else if (trace_scale >= 40) {
+        trace_step = 2;
+      } else if (trace_scale >= 20) {
+        trace_step = 1;
+      } else if (trace_scale >= 8) {
+        trace_step = 0.5;
+      } else if (trace_scale >= 4) {
+        trace_step = 0.2;
+      }
+
+      for (let y = 295; y > 56; y--) {
+        const history_idx = (295 - y + history_cursor) % 240;
+        const meas = meas_history[history_idx];
+
+        let trace_offset;
+        if (type == 0) {
+          trace_offset = meas.temperature - trace_mid;
+        } else if (type == 1) {
+          trace_offset = meas.humidity - trace_mid;
+        } else if (type == 2) {
+          trace_offset = meas.co2 - trace_mid;
+        }
+
+        if (trace_offset == -trace_mid) {
+          continue;
+        }
+        
+        let steps = Math.floor(trace_offset / trace_step) + 20;
+
+        const u64_tmp = 1 << steps;
+
+        for (let x_offset = 0; x_offset < 5; x_offset++) {
+          buf[toIdx(start_x + x_offset, y)] |= (u64_tmp >> (4 - x_offset) * 8) & 0xFF;
+        }
+      }
+    }
 
     const draw = () => {
       ctx.fillStyle = '#f5f5f5';
@@ -113,50 +171,65 @@
     const co2_min = 876.66;
     const co2_max = 1123.9;
 
-    // Temperature
-    drawNum(1, 3, false, temperature, buf);
-    drawNum(4, 0, true, temp_max, buf);
-    drawFont(4, 23, true, FONT_HYPHEN, buf); // hyphen
-    drawNum(4, 30, true, temp_min, buf);
-    // Humidity
-    drawNum(6, 3, false, humidity, buf);
-    drawNum(9, 0, true, humi_max, buf);
-    drawFont(9, 23, true, FONT_HYPHEN, buf);
-    drawNum(9, 30, true, humi_min, buf);
-    // CO2
-    drawNum(11, 3, false, co2, buf);
-    drawNum(14, 0, true, co2_max, buf);
-    drawFont(14, 23, true, FONT_HYPHEN, buf);
-    drawNum(14, 30, true, co2_min, buf);
+    for (let i = 0; i < 500; i++) {
+      setTimeout(() => {
+        let idx = i % 240;
+        buf.fill(0);
 
-    // Tests
-    for (let y = 0; y < 11; y++) {
-      drawFont(1, 106 + y * FONT_H, false, y, buf);
-    }
-    for (let y = 0; y < 11; y++) {
-      drawFont(4, 107 + y * FONT_SMALL_H, true, y, buf);
-    }
+        // Temperature
+        drawNum(1, 3, false, temperature, buf);
+        drawNum(4, 0, true, temp_max, buf);
+        drawFont(4, 23, true, FONT_HYPHEN, buf); // hyphen
+        drawNum(4, 30, true, temp_min, buf);
+        // Humidity
+        drawNum(6, 3, false, humidity, buf);
+        drawNum(9, 0, true, humi_max, buf);
+        drawFont(9, 23, true, FONT_HYPHEN, buf);
+        drawNum(9, 30, true, humi_min, buf);
+        // CO2
+        drawNum(11, 3, false, co2, buf);
+        drawNum(14, 0, true, co2_max, buf);
+        drawFont(14, 23, true, FONT_HYPHEN, buf);
+        drawNum(14, 30, true, co2_min, buf);
 
-    for (let i = 0; i < buf.length; i++) {
-      const x = i % COLS_BYTES;
-      const y = Math.floor(i / COLS_BYTES);
-
-      // Horizontal lines
-      if (x == 5 || x == 10) {
-        buf[i] |= 0x01;
-        // tick marks
-        if (y > 56 && (y - 56) % 60 == 0) {
-          buf[i] |= 0x03;
+        // Tests
+        for (let y = 0; y < 11; y++) {
+          drawFont(1, 106 + y * FONT_H, false, y, buf);
         }
-      }
+        for (let y = 0; y < 11; y++) {
+          drawFont(4, 107 + y * FONT_SMALL_H, true, y, buf);
+        }
 
-      // Vertical lines
-      if (y == 56) {
-        buf[i] |= 0xFF;
-      }
+        for (let i = 0; i < buf.length; i++) {
+          const x = i % COLS_BYTES;
+          const y = Math.floor(i / COLS_BYTES);
+
+          // Horizontal lines
+          if (x == 5 || x == 10) {
+            buf[i] |= 0x01;
+            // tick marks
+            if (y > 56 && (y - 56) % 60 == 0) {
+              buf[i] |= 0x03;
+            }
+          }
+
+          // Vertical lines
+          if (y == 56) {
+            buf[i] |= 0xFF;
+          }
+        }
+
+        meas_history[idx] = {
+          temperature: 24 + Math.sin(Math.PI / 90 * i) * 4,
+          humidity: 55 + Math.cos(Math.PI / 90 * i) * 5,
+          co2: 800 + i / 500 * 399,
+        };
+        drawGraph(1, temp_min, temp_max, 0, idx + 1, buf);
+        drawGraph(6, humi_min, humi_max, 1, idx + 1, buf);
+        drawGraph(11, co2_min, co2_max, 2, idx + 1, buf);
+        draw();
+      }, 50 * (i + 1));
     }
-
-    draw();
   </script>
   <style>
     body {
