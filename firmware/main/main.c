@@ -1,23 +1,23 @@
-#include <stdio.h>
+#include "driver/gpio.h"
+#include "driver/i2c_master.h"
+#include "driver/spi_master.h"
+#include "esp_err.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+#include "esp_lcd_panel_vendor.h"
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_vendor.h"
-#include "esp_lcd_panel_ops.h"
-#include "driver/gpio.h"
-#include "driver/spi_master.h"
-#include "driver/i2c_master.h"
-#include "esp_err.h"
-#include "esp_log.h"
 #include "sdkconfig.h"
+#include <stdio.h>
 
-#include "led.h"
 #include "esp_lcd_panel_ssd1680.h"
-#include "ui.h"
+#include "led.h"
 #include "scd40.h"
+#include "ui.h"
 
-static const char* TAG = "App";
+static const char *TAG = "App";
 
 #define LCD_HOST SPI2_HOST
 
@@ -37,12 +37,18 @@ static const char* TAG = "App";
 led_strip_handle_t led_strip;
 rgb_t color_white = {16, 16, 16};
 rgb_t color_black = {0, 0, 0};
-scd40_measurement_t measurement;
+scd40_measurement_t meas_data[3] = {{
+    .temperature = 0.0f,
+    .humidity = 0.0f,
+    .co2 = 0,
+}};
+int counter = 0;
 
 // --- display callbacks
 
-IRAM_ATTR bool epaper_flush_ready_callback(const esp_lcd_panel_handle_t handle, const void* edata, void* user_data) {
-  SemaphoreHandle_t* panel_refreshing_sem_ptr = user_data;
+IRAM_ATTR bool epaper_flush_ready_callback(const esp_lcd_panel_handle_t handle,
+                                           const void *edata, void *user_data) {
+  SemaphoreHandle_t *panel_refreshing_sem_ptr = user_data;
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   xSemaphoreGiveFromISR(*panel_refreshing_sem_ptr, &xHigherPriorityTaskWoken);
   if (xHigherPriorityTaskWoken == pdTRUE) {
@@ -80,7 +86,8 @@ void app_main(void) {
       .on_color_trans_done = NULL,
   };
   // --- Attach the LCD to the SPI bus
-  ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config, &io_handle));
+  ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST,
+                                           &io_config, &io_handle));
   esp_lcd_panel_handle_t panel_handle = NULL;
 
   esp_lcd_ssd1680_config_t epaper_ssd1680_config = {
@@ -93,7 +100,8 @@ void app_main(void) {
       .vendor_config = &epaper_ssd1680_config,
   };
   gpio_install_isr_service(0);
-  ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1680(io_handle, &panel_config, &panel_handle));
+  ESP_ERROR_CHECK(
+      esp_lcd_new_panel_ssd1680(io_handle, &panel_config, &panel_handle));
 
   // --- Reset the display
   ESP_LOGI(TAG, "Resetting e-Paper display...");
@@ -102,30 +110,20 @@ void app_main(void) {
   // --- Initialize panel
   ESP_LOGI(TAG, "Initializing e-Paper display...");
   ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
-  vTaskDelay(100 / portTICK_PERIOD_MS);
-  // --- Turn on display
-  ESP_LOGI(TAG, "Turning e-Paper display on...");
-  ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
-  vTaskDelay(100 / portTICK_PERIOD_MS);
+
+  uint8_t *draw_buf = init_ui_buffer();
 
   static SemaphoreHandle_t panel_refreshing_sem;
   panel_refreshing_sem = xSemaphoreCreateBinary();
   xSemaphoreGive(panel_refreshing_sem);
 
   // --- Register the e-Paper refresh done callback
-  epaper_panel_callbacks_t cbs = {.on_epaper_refresh_done = epaper_flush_ready_callback};
-  epaper_panel_register_event_callbacks(panel_handle, &cbs, &panel_refreshing_sem);
+  epaper_panel_callbacks_t cbs = {.on_epaper_refresh_done =
+                                      epaper_flush_ready_callback};
+  epaper_panel_register_event_callbacks(panel_handle, &cbs,
+                                        &panel_refreshing_sem);
 
-  uint8_t* draw_buf = init_ui_buffer();
-  ESP_LOGI(TAG, "Draw UI");
-  draw_ui(panel_handle, panel_refreshing_sem, draw_buf);
-
-  ESP_ERROR_CHECK(blink_led(&led_strip, &color_white));
-
-  vTaskDelay(pdMS_TO_TICKS(5000));
-  ESP_ERROR_CHECK(blink_led(&led_strip, &color_black));
-  ESP_LOGI(TAG, "Go to sleep mode...");
-
+  vTaskDelay(pdMS_TO_TICKS(1000));
   ESP_LOGI(TAG, "Initialize I2C bus");
   i2c_master_bus_config_t i2c_buscfg = {
       .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -145,7 +143,8 @@ void app_main(void) {
   };
 
   i2c_master_dev_handle_t scd40_handle;
-  ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_handle, &scd40_dev_config, &scd40_handle));
+  ESP_ERROR_CHECK(
+      i2c_master_bus_add_device(i2c_handle, &scd40_dev_config, &scd40_handle));
   vTaskDelay(pdMS_TO_TICKS(100));
 
   ESP_LOGI(TAG, "Start SCD40 low power measurement");
@@ -153,9 +152,19 @@ void app_main(void) {
 
   while (1) {
     vTaskDelay(pdMS_TO_TICKS(1000));
-    if (scd40_get_data_ready(scd40_handle)) {
-      scd40_read_measurement(scd40_handle, &measurement);
-      ESP_LOGI(TAG, "CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", measurement.co2, measurement.temperature, measurement.humidity);
+    if (!scd40_get_data_ready(scd40_handle)) {
+      continue;
+    }
+    scd40_read_measurement(scd40_handle, &meas_data[0]);
+    ESP_LOGI(TAG, "CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", meas_data[0].co2,
+             meas_data[0].temperature, meas_data[0].humidity);
+    if (counter == 0) {
+      ESP_LOGI(TAG, "Draw UI");
+      draw_ui(panel_handle, meas_data, panel_refreshing_sem, draw_buf);
+    }
+    counter++;
+    if (counter == 10) {
+      counter = 0;
     }
   }
 }
