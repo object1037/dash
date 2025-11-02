@@ -34,6 +34,7 @@ typedef struct {
 #define SCD40_CMD_FACTORY_RESET 0x3632
 #define SCD40_CMD_REINIT 0x3646
 
+esp_err_t scd40_start_measurement(i2c_master_dev_handle_t dev_handle);
 esp_err_t scd40_start_lp_measurement(i2c_master_dev_handle_t dev_handle);
 bool scd40_get_data_ready(i2c_master_dev_handle_t dev_handle);
 void scd40_read_measurement(i2c_master_dev_handle_t dev_handle, scd40_measurement_t* measurement);

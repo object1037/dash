@@ -102,25 +102,6 @@
       }
     }
 
-    for (let i = 0; i < buf.length; i++) {
-      const x = i % COLS_BYTES;
-      const y = Math.floor(i / COLS_BYTES);
-
-      // Horizontal lines
-      if (x == 5 || x == 10) {
-        buf[i] |= 0x01;
-        // tick marks
-        if (y > 56 && (y - 56) % 60 == 0) {
-          buf[i] |= 0x03;
-        }
-      }
-
-      // Vertical lines
-      if (y == 56) {
-        buf[i] |= 0xFF;
-      }
-    }
-
     // Font render
     const temperature = 23.42;
     const temp_min = 20.52;
@@ -154,6 +135,25 @@
     }
     for (let y = 0; y < 11; y++) {
       drawFont(4, 107 + y * FONT_SMALL_H, true, y, buf);
+    }
+
+    for (let i = 0; i < buf.length; i++) {
+      const x = i % COLS_BYTES;
+      const y = Math.floor(i / COLS_BYTES);
+
+      // Horizontal lines
+      if (x == 5 || x == 10) {
+        buf[i] |= 0x01;
+        // tick marks
+        if (y > 56 && (y - 56) % 60 == 0) {
+          buf[i] |= 0x03;
+        }
+      }
+
+      // Vertical lines
+      if (y == 56) {
+        buf[i] |= 0xFF;
+      }
     }
 
     draw();

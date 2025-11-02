@@ -1,10 +1,17 @@
 #include "scd40.h"
+#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 void conv_cmd(uint16_t cmd, uint8_t *buf) {
   buf[0] = cmd >> 8;
   buf[1] = cmd & 0xFF;
+}
+
+esp_err_t scd40_start_measurement(i2c_master_dev_handle_t dev_handle) {
+  uint8_t cmd[2];
+  conv_cmd(SCD40_CMD_START_PERIODIC_MEASUREMENT, cmd);
+  return i2c_master_transmit(dev_handle, cmd, sizeof(cmd), -1);
 }
 
 esp_err_t scd40_start_lp_measurement(i2c_master_dev_handle_t dev_handle) {

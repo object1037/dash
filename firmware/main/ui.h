@@ -13,4 +13,5 @@
 #define TO_IDX(x, y) ((y) * COLS_BYTE + (x))
 
 uint8_t *init_ui_buffer();
-void draw_ui(esp_lcd_panel_handle_t panel_handle, scd40_measurement_t meas_data[3], SemaphoreHandle_t panel_refreshing_sem, uint8_t *draw_buf);
+void refresh_panel(esp_lcd_panel_handle_t panel_handle, SemaphoreHandle_t panel_refreshing_sem, bool full_refresh, uint8_t *buf);
+void draw_ui(scd40_measurement_t meas_digest[3], uint8_t *draw_buf);

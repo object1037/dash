@@ -4,8 +4,10 @@
 #include "esp_lcd_panel_ssd1680.h"
 #include "esp_lcd_panel_vendor.h"
 #include "fonts.h"
+#include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "string.h"
+#include <stdint.h>
 
 uint8_t *init_ui_buffer() {
   uint8_t *draw_buf = heap_caps_malloc(BUF_SIZE, MALLOC_CAP_DMA);
@@ -58,15 +60,42 @@ void draw_num(int start_x, int start_y, bool is_small, float number,
     draw_font(start_x, start_y + font_h * 2, is_small, (int)(number / 100) % 10,
               buf); // X
     if (number >= 1000) {
-      draw_font(start_x, start_y, is_small, (int)(number / 1000) % 10,
+      draw_font(start_x, start_y + font_h * 3, is_small,
+                (int)(number / 1000) % 10,
                 buf); // W
     }
   }
 }
 
-void draw_ui(esp_lcd_panel_handle_t panel_handle,
-             scd40_measurement_t meas_data[3],
-             SemaphoreHandle_t panel_refreshing_sem, uint8_t *buf) {
+void refresh_panel(esp_lcd_panel_handle_t panel_handle,
+                   SemaphoreHandle_t panel_refreshing_sem, bool full_refresh,
+                   uint8_t *buf) {
+  ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
+  vTaskDelay(pdMS_TO_TICKS(100));
+  ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
+  vTaskDelay(pdMS_TO_TICKS(100));
+  ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
+  vTaskDelay(pdMS_TO_TICKS(100));
+
+  int x_start = 0;
+  int y_start = 0;
+  int x_end = EPD_WIDTH;
+  int y_end = EPD_HEIGHT;
+  if (!full_refresh) {
+    y_end = 56;
+  }
+
+  xSemaphoreTake(panel_refreshing_sem, portMAX_DELAY);
+  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, x_start, y_start,
+                                            x_end, y_end, buf));
+  ESP_ERROR_CHECK(epaper_panel_refresh_screen(panel_handle));
+
+  vTaskDelay(pdMS_TO_TICKS(100));
+  ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, false));
+}
+
+void draw_ui(scd40_measurement_t meas_digest[3], uint8_t *buf) {
+  memset(buf, 0x00, BUF_SIZE);
   for (int i = 0; i < BUF_SIZE; i++) {
     int x = i % COLS_BYTE;
     int y = i / COLS_BYTE;
@@ -88,40 +117,28 @@ void draw_ui(esp_lcd_panel_handle_t panel_handle,
 
   // Font render
   // Temperature
-  draw_num(1, 3, false, meas_data[0].temperature, buf);
-  draw_num(4, 0, true, meas_data[2].temperature, buf);  // max
-  draw_font(4, 23, true, FONT_HYPHEN, buf);             // hyphen
-  draw_num(4, 30, true, meas_data[1].temperature, buf); // min
+  draw_num(1, 3, false, meas_digest[0].temperature, buf);
+  draw_num(4, 0, true, meas_digest[2].temperature, buf);  // max
+  draw_font(4, 23, true, FONT_HYPHEN, buf);               // hyphen
+  draw_num(4, 30, true, meas_digest[1].temperature, buf); // min
 
   // Humidity
-  draw_num(6, 3, false, meas_data[0].humidity, buf);
-  draw_num(9, 0, true, meas_data[2].humidity, buf);  // max
-  draw_font(9, 23, true, FONT_HYPHEN, buf);          // hyphen
-  draw_num(9, 30, true, meas_data[1].humidity, buf); // min
+  draw_num(6, 3, false, meas_digest[0].humidity, buf);
+  draw_num(9, 0, true, meas_digest[2].humidity, buf);  // max
+  draw_font(9, 23, true, FONT_HYPHEN, buf);            // hyphen
+  draw_num(9, 30, true, meas_digest[1].humidity, buf); // min
 
   // CO2
-  draw_num(11, 3, false, meas_data[0].co2, buf);
-  draw_num(14, 0, true, meas_data[2].co2, buf);  // max
-  draw_font(14, 23, true, FONT_HYPHEN, buf);     // hyphen
-  draw_num(14, 30, true, meas_data[1].co2, buf); // min
+  draw_num(11, 3, false, meas_digest[0].co2, buf);
+  draw_num(14, 0, true, meas_digest[2].co2, buf);  // max
+  draw_font(14, 23, true, FONT_HYPHEN, buf);       // hyphen
+  draw_num(14, 30, true, meas_digest[1].co2, buf); // min
 
   // Tests
-  for (int y = 0; y < 11; y++) {
-    draw_font(1, 106 + y * FONT_H, false, y, buf);
-  }
-  for (int y = 0; y < 11; y++) {
-    draw_font(4, 107 + y * FONT_SMALL_H, true, y, buf);
-  }
-
-  // --- Turn on display
-  ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
-  vTaskDelay(pdMS_TO_TICKS(100));
-
-  xSemaphoreTake(panel_refreshing_sem, portMAX_DELAY);
-  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, EPD_WIDTH,
-                                            EPD_HEIGHT, buf));
-  ESP_ERROR_CHECK(epaper_panel_refresh_screen(panel_handle));
-
-  vTaskDelay(pdMS_TO_TICKS(100));
-  ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, false));
+  // for (int y = 0; y < 11; y++) {
+  //   draw_font(1, 106 + y * FONT_H, false, y, buf);
+  // }
+  // for (int y = 0; y < 11; y++) {
+  //   draw_font(4, 107 + y * FONT_SMALL_H, true, y, buf);
+  // }
 }
