@@ -5,4 +5,4 @@ fp-info-cache
 .DS_Store
 firmware/build
 firmware/managed_components
-
+firmware/.cache

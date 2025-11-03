@@ -124,8 +124,7 @@ static void draw_graph(int start_x, float trace_min, float trace_max, int type,
 }
 
 void refresh_panel(esp_lcd_panel_handle_t panel_handle,
-                   SemaphoreHandle_t panel_refreshing_sem, bool full_refresh,
-                   uint8_t *buf) {
+                   SemaphoreHandle_t panel_refreshing_sem, uint8_t *buf) {
   ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
   vTaskDelay(pdMS_TO_TICKS(100));
   ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
@@ -133,17 +132,9 @@ void refresh_panel(esp_lcd_panel_handle_t panel_handle,
   ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
   vTaskDelay(pdMS_TO_TICKS(100));
 
-  int x_start = 0;
-  int y_start = 0;
-  int x_end = EPD_WIDTH;
-  int y_end = EPD_HEIGHT;
-  if (!full_refresh) {
-    y_end = 56;
-  }
-
   xSemaphoreTake(panel_refreshing_sem, portMAX_DELAY);
-  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, x_start, y_start,
-                                            x_end, y_end, buf));
+  ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, EPD_WIDTH,
+                                            EPD_HEIGHT, buf));
   ESP_ERROR_CHECK(epaper_panel_refresh_screen(panel_handle));
 
   vTaskDelay(pdMS_TO_TICKS(100));

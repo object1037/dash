@@ -56,6 +56,7 @@ scd40_measurement_t meas_history[240] = {{
 }};
 int counter = 0;
 bool first_run = true;
+bool first_quarter = true;
 
 // --- display callbacks
 
@@ -71,33 +72,48 @@ IRAM_ATTR bool epaper_flush_ready_callback(const esp_lcd_panel_handle_t handle,
   return false;
 }
 
-void update_digest() {
-  // Update max/min values in digest
-  if (meas_digest[1].temperature == 0 ||
-      meas_digest[1].temperature > meas_digest[0].temperature) {
-    meas_digest[1].temperature = meas_digest[0].temperature;
-  }
-  if (meas_digest[2].temperature == 0 ||
-      meas_digest[2].temperature < meas_digest[0].temperature) {
-    meas_digest[2].temperature = meas_digest[0].temperature;
-  }
-  if (meas_digest[1].humidity == 0 ||
-      meas_digest[1].humidity > meas_digest[0].humidity) {
-    meas_digest[1].humidity = meas_digest[0].humidity;
-  }
-  if (meas_digest[2].humidity == 0 ||
-      meas_digest[2].humidity < meas_digest[0].humidity) {
-    meas_digest[2].humidity = meas_digest[0].humidity;
-  }
-  if (meas_digest[1].co2 == 0 || meas_digest[1].co2 > meas_digest[0].co2) {
-    meas_digest[1].co2 = meas_digest[0].co2;
-  }
-  if (meas_digest[2].co2 == 0 || meas_digest[2].co2 < meas_digest[0].co2) {
-    meas_digest[2].co2 = meas_digest[0].co2;
+void get_minmax_meas(scd40_measurement_t *min_meas,
+                     scd40_measurement_t *max_meas) {
+  min_meas->temperature = 130.0f;
+  min_meas->humidity = 100.0f;
+  min_meas->co2 = 0xFFFF;
+  max_meas->temperature = -45.0f;
+  max_meas->humidity = 0.0f;
+  max_meas->co2 = 0;
+  for (int i = 0; i < 240; i++) {
+    scd40_measurement_t meas = meas_history[i];
+    if (meas.temperature == 0.0f && meas.humidity == 0.0f && meas.co2 == 0) {
+      continue;
+    }
+    if (meas.temperature < min_meas->temperature) {
+      min_meas->temperature = meas.temperature;
+    }
+    if (meas.temperature > max_meas->temperature) {
+      max_meas->temperature = meas.temperature;
+    }
+    if (meas.humidity < min_meas->humidity) {
+      min_meas->humidity = meas.humidity;
+    }
+    if (meas.humidity > max_meas->humidity) {
+      max_meas->humidity = meas.humidity;
+    }
+    if (meas.co2 < min_meas->co2) {
+      min_meas->co2 = meas.co2;
+    }
+    if (meas.co2 > max_meas->co2) {
+      max_meas->co2 = meas.co2;
+    }
   }
 }
 
-void average_last_minutes(scd40_measurement_t *latest_meas) {
+void update_minmax_digest() {
+  scd40_measurement_t min_meas, max_meas;
+  get_minmax_meas(&min_meas, &max_meas);
+  meas_digest[1] = min_meas;
+  meas_digest[2] = max_meas;
+}
+
+void set_minute_digest(scd40_measurement_t *latest_meas) {
   float temp_sum = latest_meas->temperature;
   float rh_sum = latest_meas->humidity;
   uint32_t co2_sum = latest_meas->co2;
@@ -240,43 +256,41 @@ void app_main(void) {
     int minute_idx = counter % 12;
     if (minute_idx != 0) {
       scd40_read_measurement(scd40_handle, &meas_last_minutes[minute_idx - 1]);
-      // ESP_LOGI(TAG, "(%d) CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", counter,
-      //          meas_last_minutes[minute_idx - 1].co2,
-      //          meas_last_minutes[minute_idx - 1].temperature,
-      //          meas_last_minutes[minute_idx - 1].humidity);
-    } else {
+    } else { // every minute
       scd40_measurement_t meas;
       scd40_read_measurement(scd40_handle, &meas);
 
       if (first_run) {
         meas_digest[0] = meas;
       } else {
-        average_last_minutes(&meas);
+        set_minute_digest(&meas);
       }
 
-      add_history(minutes);
-      update_digest();
+      if (!first_quarter) {
+        // Don't use the first 15 minutes of data
+        add_history(minutes);
+        update_minmax_digest();
+      }
 
       ESP_LOGI(TAG, "(%d) CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", counter,
                meas_digest[0].co2, meas_digest[0].temperature,
                meas_digest[0].humidity);
+
+      first_run = false;
     }
 
     if (counter % 180 == 0) { // every 15 minutes
       ESP_LOGI(TAG, "[%d] Update Graph", minutes);
       draw_ui(meas_digest, meas_history, minutes, draw_buf);
-      refresh_panel(panel_handle, panel_refreshing_sem, true, draw_buf);
+      refresh_panel(panel_handle, panel_refreshing_sem, draw_buf);
+      if (counter > 0) {
+        first_quarter = false;
+      }
     }
-    // else if (counter % 60 == 0) { // every 5 minutes
-    //   ESP_LOGI(TAG, "[%d] Update digest UI", minutes);
-    //   draw_ui(meas_digest, meas_history, minutes, draw_buf);
-    //   refresh_panel(panel_handle, panel_refreshing_sem, first_run, draw_buf);
-    // }
 
     counter++;
     if (counter == 2880) { // 2880 x 5s = 4 hours
       counter = 0;
     }
-    first_run = false;
   }
 }
