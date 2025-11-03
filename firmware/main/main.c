@@ -35,10 +35,10 @@ static const char *TAG = "App";
 #define LCD_PARAM_BITS 8
 
 #define MEASURE_PER_MINUTE 2
-#define FILTER_ALPHA 0.4f
+#define FILTER_ALPHA 0.2f
 #define GRAPH_WIDTH 240
 
-#define TEMP_OFFSET -1.0f
+#define TEMP_OFFSET -0.1f
 
 led_strip_handle_t led_strip;
 rgb_t color_white = {16, 16, 16};
