@@ -38,6 +38,8 @@ static const char *TAG = "App";
 #define FILTER_ALPHA 0.4f
 #define GRAPH_WIDTH 240
 
+#define TEMP_OFFSET -1.0f
+
 led_strip_handle_t led_strip;
 rgb_t color_white = {16, 16, 16};
 rgb_t color_black = {0, 0, 0};
@@ -259,10 +261,11 @@ void app_main(void) {
     int minutes = counter / MEASURE_PER_MINUTE;
     int minute_idx = counter % MEASURE_PER_MINUTE;
     if (minute_idx != 0) {
-      scd40_read_measurement(scd40_handle, &meas_last_minutes[minute_idx - 1]);
+      scd40_read_measurement(scd40_handle, &meas_last_minutes[minute_idx - 1],
+                             TEMP_OFFSET);
     } else { // every minute
       scd40_measurement_t meas;
-      scd40_read_measurement(scd40_handle, &meas);
+      scd40_read_measurement(scd40_handle, &meas, TEMP_OFFSET);
 
       if (first_run) {
         meas_digest[0] = meas;

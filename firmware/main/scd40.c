@@ -38,7 +38,8 @@ bool scd40_get_data_ready(i2c_master_dev_handle_t dev_handle) {
 }
 
 void scd40_read_measurement(i2c_master_dev_handle_t dev_handle,
-                            scd40_measurement_t *measurement) {
+                            scd40_measurement_t *measurement,
+                            float temp_offset) {
   uint8_t cmd[2];
   conv_cmd(SCD40_CMD_READ_MEASUREMENT, cmd);
   ESP_ERROR_CHECK(i2c_master_transmit(dev_handle, cmd, sizeof(cmd), -1));
@@ -51,6 +52,7 @@ void scd40_read_measurement(i2c_master_dev_handle_t dev_handle,
   uint16_t temp_raw = (response[3] << 8) | response[4];
   uint16_t rh_raw = (response[6] << 8) | response[7];
 
-  measurement->temperature = -45.0f + 175.0f * ((float)temp_raw / 65535.0f);
+  measurement->temperature =
+      -45.0f + 175.0f * ((float)temp_raw / 65535.0f) + temp_offset;
   measurement->humidity = 100.0f * ((float)rh_raw / 65535.0f);
 }

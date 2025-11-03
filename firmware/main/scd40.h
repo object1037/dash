@@ -37,4 +37,4 @@ typedef struct {
 esp_err_t scd40_start_measurement(i2c_master_dev_handle_t dev_handle);
 esp_err_t scd40_start_lp_measurement(i2c_master_dev_handle_t dev_handle);
 bool scd40_get_data_ready(i2c_master_dev_handle_t dev_handle);
-void scd40_read_measurement(i2c_master_dev_handle_t dev_handle, scd40_measurement_t* measurement);
+void scd40_read_measurement(i2c_master_dev_handle_t dev_handle, scd40_measurement_t* measurement, float temp_offset);
