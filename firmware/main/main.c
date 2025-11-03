@@ -34,12 +34,14 @@ static const char *TAG = "App";
 #define LCD_CMD_BITS 8
 #define LCD_PARAM_BITS 8
 
+#define MEASURE_PER_MINUTE 2
 #define FILTER_ALPHA 0.4f
+#define GRAPH_WIDTH 240
 
 led_strip_handle_t led_strip;
 rgb_t color_white = {16, 16, 16};
 rgb_t color_black = {0, 0, 0};
-scd40_measurement_t meas_last_minutes[11] = {{
+scd40_measurement_t meas_last_minutes[MEASURE_PER_MINUTE - 1] = {{
     .temperature = 0.0f,
     .humidity = 0.0f,
     .co2 = 0,
@@ -49,7 +51,7 @@ scd40_measurement_t meas_digest[3] = {{
     .humidity = 0.0f,
     .co2 = 0,
 }};
-scd40_measurement_t meas_history[240] = {{
+scd40_measurement_t meas_history[GRAPH_WIDTH] = {{
     .temperature = 0.0f,
     .humidity = 0.0f,
     .co2 = 0,
@@ -80,7 +82,7 @@ void get_minmax_meas(scd40_measurement_t *min_meas,
   max_meas->temperature = -45.0f;
   max_meas->humidity = 0.0f;
   max_meas->co2 = 0;
-  for (int i = 0; i < 240; i++) {
+  for (int i = 0; i < GRAPH_WIDTH; i++) {
     scd40_measurement_t meas = meas_history[i];
     if (meas.temperature == 0.0f && meas.humidity == 0.0f && meas.co2 == 0) {
       continue;
@@ -117,14 +119,14 @@ void set_minute_digest(scd40_measurement_t *latest_meas) {
   float temp_sum = latest_meas->temperature;
   float rh_sum = latest_meas->humidity;
   uint32_t co2_sum = latest_meas->co2;
-  for (int i = 0; i < 11; i++) {
+  for (int i = 0; i < MEASURE_PER_MINUTE - 1; i++) {
     temp_sum += meas_last_minutes[i].temperature;
     rh_sum += meas_last_minutes[i].humidity;
     co2_sum += meas_last_minutes[i].co2;
   }
-  meas_digest[0].temperature = temp_sum / 12.0f;
-  meas_digest[0].humidity = rh_sum / 12.0f;
-  meas_digest[0].co2 = co2_sum / 12;
+  meas_digest[0].temperature = temp_sum / (float)(MEASURE_PER_MINUTE);
+  meas_digest[0].humidity = rh_sum / (float)(MEASURE_PER_MINUTE);
+  meas_digest[0].co2 = co2_sum / MEASURE_PER_MINUTE;
 }
 
 float filter(float prev_value, float new_meas) {
@@ -132,7 +134,8 @@ float filter(float prev_value, float new_meas) {
 }
 
 void add_history(int minutes) {
-  scd40_measurement_t meas_prev = meas_history[(minutes + 240 - 1) % 240];
+  scd40_measurement_t meas_prev =
+      meas_history[(minutes + GRAPH_WIDTH - 1) % GRAPH_WIDTH];
   if (meas_prev.temperature == 0.0f && meas_prev.humidity == 0.0f &&
       meas_prev.co2 == 0) {
     meas_prev = meas_digest[0];
@@ -244,7 +247,7 @@ void app_main(void) {
   }
   blink_led(&led_strip, &color_black);
   ESP_LOGI(TAG, "Start SCD40 periodic measurement");
-  ESP_ERROR_CHECK(scd40_start_measurement(scd40_handle));
+  ESP_ERROR_CHECK(scd40_start_lp_measurement(scd40_handle));
 
   while (1) {
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -252,9 +255,9 @@ void app_main(void) {
       continue;
     }
 
-    // Approx. every 5 seconds
-    int minutes = counter / 12;
-    int minute_idx = counter % 12;
+    // Approx. every 30 seconds
+    int minutes = counter / MEASURE_PER_MINUTE;
+    int minute_idx = counter % MEASURE_PER_MINUTE;
     if (minute_idx != 0) {
       scd40_read_measurement(scd40_handle, &meas_last_minutes[minute_idx - 1]);
     } else { // every minute
@@ -280,7 +283,7 @@ void app_main(void) {
       first_run = false;
     }
 
-    if (counter % 180 == 0) { // every 15 minutes
+    if (counter % (MEASURE_PER_MINUTE * 15) == 0) { // every 15 minutes
       ESP_LOGI(TAG, "[%d] Update Graph", minutes);
       draw_ui(meas_digest, meas_history, minutes, draw_buf);
       refresh_panel(panel_handle, panel_refreshing_sem, draw_buf);
@@ -290,7 +293,7 @@ void app_main(void) {
     }
 
     counter++;
-    if (counter == 2880) { // 2880 x 5s = 4 hours
+    if (counter == (MEASURE_PER_MINUTE * 60 * 4)) { // 4 hours
       counter = 0;
     }
   }
