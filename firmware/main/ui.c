@@ -8,6 +8,7 @@
 #include "freertos/projdefs.h"
 #include "scd40.h"
 #include "string.h"
+#include <math.h>
 #include <stdint.h>
 
 uint8_t *init_ui_buffer() {
@@ -46,7 +47,8 @@ static void draw_num(int start_x, int start_y, bool is_small, float number,
   }
   if (number < 100) {
     // XY.Z
-    draw_font(start_x, start_y, is_small, (int)(number * 10) % 10, buf); // Z
+    draw_font(start_x, start_y, is_small, (int)roundf(number * 10) % 10,
+              buf); // Z
     start_y += dot_offset_h;
     draw_font(start_x, start_y + font_h, is_small, FONT_DOT, buf); // dot
     start_y += dot_offset_h;
@@ -72,7 +74,7 @@ static void draw_num(int start_x, int start_y, bool is_small, float number,
 static void draw_graph(int start_x, float trace_min, float trace_max, int type,
                        scd40_measurement_t meas_history[], int history_cursor,
                        uint8_t *buf) {
-  float trace_step = 0.1f;
+  float trace_step = 0.05f;
   float trace_scale = trace_max - trace_min;
   float trace_mid = (trace_max + trace_min) / 2.0f;
 
@@ -94,6 +96,8 @@ static void draw_graph(int start_x, float trace_min, float trace_max, int type,
     trace_step = 0.5;
   } else if (trace_scale >= 4) {
     trace_step = 0.2;
+  } else if (trace_scale >= 2) {
+    trace_step = 0.1;
   }
 
   for (int y = 295; y > 56; y--) {
