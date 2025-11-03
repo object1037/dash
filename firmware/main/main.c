@@ -132,9 +132,10 @@ float filter(float prev_value, float new_meas) {
 }
 
 void add_history(int minutes) {
-  scd40_measurement_t meas_prev = meas_digest[0];
-  if (minutes > 0) {
-    meas_prev = meas_history[minutes - 1];
+  scd40_measurement_t meas_prev = meas_history[(minutes + 240 - 1) % 240];
+  if (meas_prev.temperature == 0.0f && meas_prev.humidity == 0.0f &&
+      meas_prev.co2 == 0) {
+    meas_prev = meas_digest[0];
   }
   meas_history[minutes].temperature =
       filter(meas_prev.temperature, meas_digest[0].temperature);
