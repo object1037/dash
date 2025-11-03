@@ -34,7 +34,7 @@ static const char *TAG = "App";
 #define LCD_CMD_BITS 8
 #define LCD_PARAM_BITS 8
 
-#define FILTER_ALPHA 0.5f
+#define FILTER_ALPHA 0.4f
 
 led_strip_handle_t led_strip;
 rgb_t color_white = {16, 16, 16};
@@ -111,19 +111,21 @@ void average_last_minutes(scd40_measurement_t *latest_meas) {
   meas_digest[0].co2 = co2_sum / 12;
 }
 
+float filter(float prev_value, float new_meas) {
+  return FILTER_ALPHA * prev_value + (1 - FILTER_ALPHA) * new_meas;
+}
+
 void add_history(int minutes) {
   scd40_measurement_t meas_prev = meas_digest[0];
   if (minutes > 0) {
     meas_prev = meas_history[minutes - 1];
   }
   meas_history[minutes].temperature =
-      FILTER_ALPHA * meas_prev.temperature +
-      (1 - FILTER_ALPHA) * meas_digest[0].temperature;
-  meas_history[minutes].humidity = FILTER_ALPHA * meas_prev.humidity +
-                                   (1 - FILTER_ALPHA) * meas_digest[0].humidity;
+      filter(meas_prev.temperature, meas_digest[0].temperature);
+  meas_history[minutes].humidity =
+      filter(meas_prev.humidity, meas_digest[0].humidity);
   meas_history[minutes].co2 =
-      (uint16_t)(FILTER_ALPHA * meas_prev.co2 +
-                 (1 - FILTER_ALPHA) * meas_digest[0].co2);
+      (uint16_t)(filter(meas_prev.co2, meas_digest[0].co2));
 }
 
 void app_main(void) {

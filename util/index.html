@@ -133,13 +133,14 @@
         if (trace_offset == -trace_mid) {
           continue;
         }
-        
-        let steps = Math.floor(trace_offset / trace_step) + 20;
 
-        const u64_tmp = 1 << steps;
+        let steps = Math.floor(trace_offset / trace_step + 20);
+
+        let u64_tmp = 0n;
+        u64_tmp |= BigInt.asUintN(64, (1n << BigInt(steps)) - 1n);
 
         for (let x_offset = 0; x_offset < 5; x_offset++) {
-          buf[toIdx(start_x + x_offset, y)] |= (u64_tmp >> (4 - x_offset) * 8) & 0xFF;
+          buf[toIdx(start_x + x_offset, y)] |= Number((u64_tmp >> BigInt((4 - x_offset) * 8)) & 0xFFn);
         }
       }
     }
@@ -168,8 +169,8 @@
     const humi_min = 49.21;
     const humi_max = 61.31;
     const co2 = 986.6;
-    const co2_min = 876.66;
-    const co2_max = 1123.9;
+    const co2_min = 876;
+    const co2_max = 1124;
 
     for (let i = 0; i < 500; i++) {
       setTimeout(() => {
@@ -209,7 +210,7 @@
             buf[i] |= 0x01;
             // tick marks
             if (y > 56 && (y - 56) % 60 == 0) {
-              buf[i] |= 0x03;
+              buf[i + 1] |= 0x80;
             }
           }
 
@@ -222,7 +223,7 @@
         meas_history[idx] = {
           temperature: 24 + Math.sin(Math.PI / 90 * i) * 4,
           humidity: 55 + Math.cos(Math.PI / 90 * i) * 5,
-          co2: 800 + i / 500 * 399,
+          co2: 800 + (i / 50 * 400) % 400,
         };
         drawGraph(1, temp_min, temp_max, 0, idx + 1, buf);
         drawGraph(6, humi_min, humi_max, 1, idx + 1, buf);

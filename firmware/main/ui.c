@@ -114,7 +114,8 @@ static void draw_graph(int start_x, float trace_min, float trace_max, int type,
     }
 
     int steps = (int)(trace_offset / trace_step) + 20;
-    uint64_t tmp = 1 << steps;
+    uint64_t tmp = 0;
+    tmp |= ((uint64_t)1 << steps) - 1;
 
     for (int x_offset = 0; x_offset < 5; x_offset++) {
       buf[TO_IDX(start_x + x_offset, y)] |= (tmp >> (4 - x_offset) * 8) & 0xFF;
@@ -161,7 +162,7 @@ void draw_ui(scd40_measurement_t meas_digest[3],
       buf[i] |= 0x01;
       // tick marks
       if (y > 56 && (y - 56) % 60 == 0) {
-        buf[i] |= 0x03;
+        buf[i + 1] |= 0x80;
       }
     }
 
