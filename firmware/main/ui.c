@@ -118,6 +118,11 @@ static void draw_graph(int start_x, float trace_min, float trace_max, int type,
     }
 
     int steps = (int)(trace_offset / trace_step) + 20;
+    if (steps < 0) {
+      steps = 0;
+    } else if (steps > 40) {
+      steps = 40;
+    }
     uint64_t tmp = 0;
     tmp |= ((uint64_t)1 << steps) - 1;
 
