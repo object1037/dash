@@ -78,6 +78,10 @@ static void draw_graph(int start_x, float trace_min, float trace_max, int type,
   float trace_scale = trace_max - trace_min;
   float trace_mid = (trace_max + trace_min) / 2.0f;
 
+  if (trace_scale >= 4000) {
+    trace_mid = trace_min + 2000.0f;
+  }
+
   if (trace_scale >= 2000) {
     trace_step = 100;
   } else if (trace_scale >= 800) {
