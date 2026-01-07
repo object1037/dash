@@ -35,6 +35,7 @@ static const char *TAG = "App";
 #define LCD_PARAM_BITS 8
 
 #define MEASURE_PER_MINUTE 2
+#define REFRESH_FREQUENCY_MINUTES 15
 #define FILTER_ALPHA 0.2f
 #define GRAPH_WIDTH 240
 
@@ -131,6 +132,31 @@ void set_minute_digest(scd40_measurement_t *latest_meas) {
   meas_digest[0].co2 = co2_sum / MEASURE_PER_MINUTE;
 }
 
+void get_quarter_digest(scd40_measurement_t meas_history[], int current_minute,
+                        scd40_measurement_t *average_meas) {
+  *average_meas = (scd40_measurement_t){
+      .temperature = 0.0f,
+      .humidity = 0.0f,
+      .co2 = 0,
+  };
+
+  for (int i = 0; i < REFRESH_FREQUENCY_MINUTES; i++) {
+    int minute = current_minute - i;
+    if (minute < 0) {
+      minute += GRAPH_WIDTH;
+    }
+    average_meas->temperature += meas_history[minute].temperature;
+    average_meas->humidity += meas_history[minute].humidity;
+    average_meas->co2 += meas_history[minute].co2;
+  }
+
+  average_meas->temperature =
+      average_meas->temperature / (float)(REFRESH_FREQUENCY_MINUTES);
+  average_meas->humidity =
+      average_meas->humidity / (float)(REFRESH_FREQUENCY_MINUTES);
+  average_meas->co2 = average_meas->co2 / REFRESH_FREQUENCY_MINUTES;
+}
+
 float filter(float prev_value, float new_meas) {
   return FILTER_ALPHA * prev_value + (1 - FILTER_ALPHA) * new_meas;
 }
@@ -151,10 +177,11 @@ void add_history(int minutes) {
 }
 
 void app_main(void) {
+  esp_log_level_set("*", ESP_LOG_INFO);
   /* Configure the peripheral according to the LED type */
   ESP_ERROR_CHECK(configure_led(&led_strip, PIN_NUM_LED));
 
-  ESP_LOGI(TAG, "Initialize SPI bus");
+  ESP_LOGD(TAG, "Initialize SPI bus");
   spi_bus_config_t spi_buscfg = {
       .sclk_io_num = PIN_NUM_SCLK,
       .mosi_io_num = PIN_NUM_MOSI,
@@ -165,7 +192,7 @@ void app_main(void) {
   };
   ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &spi_buscfg, SPI_DMA_CH_AUTO));
 
-  ESP_LOGI(TAG, "Install panel IO");
+  ESP_LOGD(TAG, "Install panel IO");
   esp_lcd_panel_io_handle_t io_handle = NULL;
   esp_lcd_panel_io_spi_config_t io_config = {
       .dc_gpio_num = PIN_NUM_EPD_DC,
@@ -196,11 +223,11 @@ void app_main(void) {
       esp_lcd_new_panel_ssd1680(io_handle, &panel_config, &panel_handle));
 
   // --- Reset the display
-  ESP_LOGI(TAG, "Resetting e-Paper display...");
+  ESP_LOGD(TAG, "Resetting e-Paper display...");
   ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
   vTaskDelay(100 / portTICK_PERIOD_MS);
   // --- Initialize panel
-  ESP_LOGI(TAG, "Initializing e-Paper display...");
+  ESP_LOGD(TAG, "Initializing e-Paper display...");
   ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
 
   uint8_t *draw_buf = init_ui_buffer();
@@ -216,7 +243,7 @@ void app_main(void) {
                                         &panel_refreshing_sem);
 
   // --- Initialize I2C and SCD40
-  ESP_LOGI(TAG, "Initialize I2C bus");
+  ESP_LOGD(TAG, "Initialize I2C bus");
   i2c_master_bus_config_t i2c_buscfg = {
       .clk_source = I2C_CLK_SRC_DEFAULT,
       .i2c_port = I2C_NUM_0,
@@ -244,11 +271,11 @@ void app_main(void) {
   // Sleep for SCD40 bootup
   vTaskDelay(pdMS_TO_TICKS(1000));
   while (i2c_master_probe(i2c_handle, SCD40_ADDR, -1) != ESP_OK) {
-    ESP_LOGI(TAG, "Waiting for SCD40 to boot...");
+    ESP_LOGD(TAG, "Waiting for SCD40 to boot...");
     vTaskDelay(pdMS_TO_TICKS(500));
   }
   blink_led(&led_strip, &color_black);
-  ESP_LOGI(TAG, "Start SCD40 periodic measurement");
+  ESP_LOGD(TAG, "Start SCD40 periodic measurement");
   ESP_ERROR_CHECK(scd40_start_lp_measurement(scd40_handle));
 
   while (1) {
@@ -279,17 +306,24 @@ void app_main(void) {
         update_minmax_digest();
       }
 
-      ESP_LOGI(TAG, "(%d) CO2: %d ppm, Temp: %.2f C, RH: %.2f %%", counter,
-               meas_digest[0].co2, meas_digest[0].temperature,
-               meas_digest[0].humidity);
+      ESP_LOGD(TAG, "(%d) Temp: %.2f C, RH: %.2f %%, CO2: %d ppm", counter,
+               meas_digest[0].temperature, meas_digest[0].humidity,
+               meas_digest[0].co2);
 
       first_run = false;
     }
 
-    if (counter % (MEASURE_PER_MINUTE * 15) == 0) { // every 15 minutes
-      ESP_LOGI(TAG, "[%d] Update Graph", minutes);
+    if (counter % (MEASURE_PER_MINUTE * REFRESH_FREQUENCY_MINUTES) ==
+        0) { // every 15 minutes
+      ESP_LOGD(TAG, "[%d] Update Graph", minutes);
       draw_ui(meas_digest, meas_history, minutes, draw_buf);
       refresh_panel(panel_handle, panel_refreshing_sem, draw_buf);
+
+      scd40_measurement_t quarter_digest;
+      get_quarter_digest(meas_history, minutes, &quarter_digest);
+      printf("%.2f,%.2f,%d\n", quarter_digest.temperature,
+             quarter_digest.humidity, quarter_digest.co2);
+
       if (counter > 0) {
         first_quarter = false;
       }
