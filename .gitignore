@@ -6,3 +6,4 @@ fp-info-cache
 firmware/build
 firmware/managed_components
 firmware/.cache
+util/.env

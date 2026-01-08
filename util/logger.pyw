@@ -5,14 +5,21 @@ import threading
 import queue
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 
-# --- CONFIGURATION ---
-SERIAL_PORT = "COM6"  # Update this
-BAUD_RATE = 115200
+# --- LOAD .ENV CONFIGURATION ---
+
+# 1. Force Python to look for .env in the script's actual folder
+script_dir = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(script_dir, ".env")
+load_dotenv(env_path)
+
+# 2. Load variables (with defaults if missing)
+SERIAL_PORT = os.getenv("SERIAL_PORT", "COM3")
+BAUD_RATE = int(os.getenv("BAUD_RATE", 115200))  # Convert string to int!
+LOG_DIRECTORY = os.getenv("LOG_DIRECTORY", "//home/data")
+
 HEADER = ["Timestamp", "Temperature", "Humidity", "CO2"]
-
-# UPDATE: Hardcoded save location
-LOG_DIRECTORY = "\\home\dash_logger_data"
 
 data_queue = queue.Queue()
 stop_event = threading.Event()
