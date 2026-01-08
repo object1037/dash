@@ -30,35 +30,47 @@ def get_monthly_filename():
 
 
 def read_serial_data():
-    """Thread 1: Completely blocking read (0% Idle CPU)"""
+    """Thread 1: Reader. Handles the 15-minute silence efficiently."""
     while not stop_event.is_set():
         try:
-            # OPTIMIZATION: timeout=None blocks forever until data arrives
+            # timeout=None blocks efficiently until data arrives
             with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=None) as ser:
-                print(f"✅ Connected to {SERIAL_PORT}")
-
                 while not stop_event.is_set():
-                    # This line will now sleep indefinitely until ESP32 talks
-                    line = ser.readline()
-                    if line:
-                        decoded = line.decode("utf-8").strip()
-                        if decoded:
-                            data_queue.put(decoded)
+                    try:
+                        line = ser.readline()
 
-        except Exception as e:
-            print(f"❌ Serial Error: {e}")
-            # If error, wait 5s before retrying to avoid rapid looping
-            time.sleep(5)
+                        if line:
+                            decoded = line.decode("utf-8").strip()
+                            if decoded:
+                                data_queue.put(decoded)
+                        else:
+                            # CRITICAL FIX: If driver returns empty bytes (EOF glitch),
+                            # sleep briefly to prevent 100% CPU spin.
+                            time.sleep(0.1)
+
+                    except Exception:
+                        break  # Break inner loop to reconnect
+
+        except Exception:
+            # If port fails to open, wait 60s before retrying
+            # (Since data is slow, fast retries aren't needed)
+            time.sleep(60)
 
 
 def write_to_csv():
-    """Thread 2: Consumer"""
-    print(f"📂 Logger active. Saving to: {LOG_DIRECTORY}")
-    while not stop_event.is_set() or not data_queue.empty():
-        try:
-            # timeout=60 saves CPU compared to timeout=1
-            raw_data = data_queue.get(timeout=60)
+    """Thread 2: Writer. Sleeps for minutes at a time."""
 
+    # Since data is rare (every 15m), we don't need complex buffering.
+    # We can just write immediately when data arrives.
+
+    while not stop_event.is_set():
+        try:
+            # OPTIMIZATION: Wait up to 5 minutes (300s) for data.
+            # This allows the thread to be completely inactive (0% CPU).
+            # Because daemon=True, we don't care if it gets stuck here on exit.
+            raw_data = data_queue.get(timeout=300)
+
+            # --- If we wake up, it means we have data! ---
             target_file = get_monthly_filename()
             file_exists = os.path.isfile(target_file)
 
@@ -73,18 +85,26 @@ def write_to_csv():
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         row = [timestamp] + [p.strip() for p in parts]
                         writer.writerow(row)
-                        print(f"saved: {row}")
+                        # print(f"saved: {row}") # Keep silent
+
             except PermissionError:
+                # If Excel is open, we lose this 1 point.
+                # With 15min intervals, buffering is risky (data stays in RAM too long).
                 pass
             except Exception:
                 pass
 
             data_queue.task_done()
+
         except queue.Empty:
+            # Timeout reached (5 mins passed with no data).
+            # Loop again to check stop_event.
             continue
 
 
 if __name__ == "__main__":
+    # daemon=True is CRITICAL. It ensures that when you close the main script,
+    # these "sleeping" threads are killed instantly by the OS.
     t1 = threading.Thread(target=read_serial_data, daemon=True)
     t2 = threading.Thread(target=write_to_csv, daemon=True)
 
@@ -92,14 +112,9 @@ if __name__ == "__main__":
     t2.start()
 
     try:
-        # OPTIMIZATION: Wait on the event instead of looping
+        # Main thread does nothing but wait for Ctrl+C
+        # Using a long wait prevents the main loop from eating CPU
         while not stop_event.is_set():
-            stop_event.wait(timeout=60)
-
+            stop_event.wait(timeout=3600)  # Check every hour
     except KeyboardInterrupt:
-        print("\n🛑 Stopping...")
         stop_event.set()
-
-    # Note: We do NOT join t1 here because it might be stuck in a blocking read.
-    # Since it is a daemon thread, it will die automatically when we exit.
-    print("Exiting.")
