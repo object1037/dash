@@ -11,28 +11,39 @@ SERIAL_PORT = "COM6"  # Update this
 BAUD_RATE = 115200
 HEADER = ["Timestamp", "Temperature", "Humidity", "CO2"]
 
-# Get the folder where this script lives
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# UPDATE: Hardcoded save location
+LOG_DIRECTORY = "\\home\dash_logger_data"
 
 data_queue = queue.Queue()
 stop_event = threading.Event()
 
 
 def get_monthly_filename():
-    """Returns the full path for the current month's CSV (e.g., 202601.csv)"""
-    current_month = datetime.now().strftime("%Y%m")  # Format: YYYYMM
+    """Returns the full path for the current month's CSV in //home/data"""
+
+    # 1. Ensure the directory exists (Create it if missing)
+    if not os.path.exists(LOG_DIRECTORY):
+        try:
+            os.makedirs(LOG_DIRECTORY, exist_ok=True)
+            print(f"📂 Created directory: {LOG_DIRECTORY}")
+        except OSError as e:
+            print(f"❌ Error creating directory {LOG_DIRECTORY}: {e}")
+            # Fallback to script folder if we can't write to //home/data
+            return f"{datetime.now().strftime('%Y%m')}.csv"
+
+    # 2. Build path: //home/data/202601.csv
+    current_month = datetime.now().strftime("%Y%m")
     filename = f"{current_month}.csv"
-    return os.path.join(SCRIPT_DIR, filename)
+    return os.path.join(LOG_DIRECTORY, filename)
 
 
 def read_serial_data():
-    """Thread 1: Reads data from USB (Blocking I/O)"""
+    """Thread 1: Reads data from USB"""
     try:
         with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
             print(f"✅ Serial connected: {SERIAL_PORT}")
             while not stop_event.is_set():
                 try:
-                    # Blocks until data arrives (0% CPU)
                     line = ser.readline()
                     if line:
                         decoded = line.decode("utf-8").strip()
@@ -48,33 +59,22 @@ def read_serial_data():
 
 
 def write_to_csv():
-    """Thread 2: Writes data to disk. Handles Excel locking errors."""
-
-    current_filename = ""
-    print("📂 Logger active. Waiting for data...")
+    """Thread 2: Writes data to disk"""
+    print(f"📂 Logger active. Saving to: {LOG_DIRECTORY}")
 
     while not stop_event.is_set() or not data_queue.empty():
         try:
-            # Get data from queue
             raw_data = data_queue.get(timeout=1)
-
-            # Check which month we are in
             target_file = get_monthly_filename()
-
-            # Check if we need a header (file doesn't exist yet)
             file_exists = os.path.isfile(target_file)
 
-            # --- THE SAFETY BLOCK ---
             try:
-                # Open, Write, and CLOSE immediately
+                # Open, Write, Close (Excel-safe method)
                 with open(target_file, mode="a", newline="") as f:
                     writer = csv.writer(f)
-
-                    # Write header if new file
                     if not file_exists:
                         writer.writerow(HEADER)
 
-                    # Prepare and write data
                     parts = raw_data.split(",")
                     if len(parts) == 3:
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -83,21 +83,14 @@ def write_to_csv():
                         print(f"saved: {row}")
 
             except PermissionError:
-                # This runs if Excel has the file open!
-                print(f"⚠️ File is locked by Excel! Data buffered in memory...")
-                # We put the data BACK into the front of the queue to try again later
-                # (Note: standard Queue doesn't support push-to-front, so we just
-                # re-add it to the back or use a temporary retry logic.
-                # For simplicity, we print an error and lose THIS single point,
-                # or you can simply 'pass' and let the next point try.)
-                pass
+                print(f"⚠️ File locked by Excel. Skipping this point.")
+            except Exception as e:
+                print(f"❌ Write Error: {e}")
 
             data_queue.task_done()
 
         except queue.Empty:
             continue
-        except Exception as e:
-            print(f"❌ Write Error: {e}")
 
 
 # --- MAIN EXECUTION ---
@@ -112,9 +105,7 @@ if __name__ == "__main__":
         while not stop_event.is_set():
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n🛑 Stopping...")
         stop_event.set()
 
     t1.join()
     t2.join()
-    print("Done.")
