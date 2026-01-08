@@ -34,7 +34,9 @@ def read_serial_data():
     while not stop_event.is_set():
         try:
             # timeout=None blocks efficiently until data arrives
-            with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=None) as ser:
+            with serial.Serial(
+                SERIAL_PORT, BAUD_RATE, timeout=None, dsrdtr=True
+            ) as ser:
                 while not stop_event.is_set():
                     try:
                         line = ser.readline()
@@ -81,7 +83,9 @@ def write_to_csv():
                         writer.writerow(HEADER)
 
                     parts = raw_data.split(",")
-                    if len(parts) == 3:
+                    if len(parts) == 3 and not all(
+                        float(p.strip()) == 0.0 for p in parts
+                    ):
                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         row = [timestamp] + [p.strip() for p in parts]
                         writer.writerow(row)
